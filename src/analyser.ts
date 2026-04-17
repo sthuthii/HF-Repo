@@ -1,27 +1,31 @@
-import axios from "axios";
+import "dotenv/config";
+import { GoogleGenerativeAI } from "@google/generative-ai";
 
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
+
+// Inside src/analyser.ts AND src/ask.ts initialization
+// Inside src/analyser.ts AND src/ask.ts
+const model = genAI.getGenerativeModel(
+  { model: "models/gemini-2.5-flash" },
+  { apiVersion: "v1" } // Use stable v1 for production models
+);
 export async function analyseFile(content: string) {
   const prompt = `
-  Analyze this file and return JSON:
-  {
-    "purpose": "...",
-    "layer": "core|api|utils|tests|config",
-    "importance": 1-5
-  }
-
-  FILE:
-  ${content}
+    Analyze the following code. Return ONLY JSON:
+    {
+      "purpose": "1-sentence description",
+      "layer": "core|api|utils|config",
+      "importance": 1-5
+    }
+    Code: ${content.slice(0, 15000)}
   `;
 
-  const res = await axios.post("https://api.anthropic.com/v1/messages", {
-    model: "claude-3-sonnet-20240229",
-    max_tokens: 300,
-    messages: [{ role: "user", content: prompt }]
-  }, {
-    headers: {
-      "x-api-key": process.env.CLAUDE_API_KEY
-    }
-  });
-
-  return JSON.parse(res.data.content[0].text);
+  try {
+    const result = await model.generateContent(prompt);
+    const text = result.response.text();
+    const jsonMatch = text.match(/\{[\s\S]*\}/);
+    return jsonMatch ? JSON.parse(jsonMatch[0]) : { purpose: "Source file", layer: "core", importance: 3 };
+  } catch (error) {
+    return { purpose: "Source code", layer: "core", importance: 3 };
+  }
 }

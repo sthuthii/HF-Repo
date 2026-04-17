@@ -1,1 +1,17 @@
-node_modules
+# Dependencies
+node_modules/
+
+# Database & Project Metadata
+.repomap/
+*.sqlite
+
+# Environment Variables
+.env
+
+# Build outputs
+dist/
+*.tsbuildinfo
+
+# OS files
+.DS_Store
+Thumbs.db
