@@ -1,78 +1,49 @@
 import "dotenv/config";
 import db from "./db";
+import { generateEmbedding } from "./embeddings";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 
-interface FileSummary {
-  path: string;
-  purpose: string;
-}
-
-interface QaCache {
-  question: string;
-  answer: string;
-}
-
-// Initialize Gemini
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
-const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash-lite" });
 
-// Normalize question for reliable cache hits
-function normalizeQuestion(q: string): string {
-  return q.trim().toLowerCase().replace(/\s+/g, " ");
+function cosineSimilarity(vecA: number[], vecB: number[]): number {
+  const dotProduct = vecA.reduce((sum, a, i) => sum + a * vecB[i], 0);
+  const magA = Math.sqrt(vecA.reduce((sum, a) => sum + a * a, 0));
+  const magB = Math.sqrt(vecB.reduce((sum, b) => sum + b * b, 0));
+  return magA && magB ? dotProduct / (magA * magB) : 0;
 }
 
-export async function ask(question: string): Promise<string> {
-  const normalized = normalizeQuestion(question);
+async function ask(question: string) {
+  console.log(`🔎 Searching for: "${question}"...`);
 
-  // 1. Check cache first
-  const cached = db.prepare(`
-    SELECT answer FROM qa_cache WHERE question = ?
-  `).get(normalized) as QaCache | undefined;
-
-  if (cached) return cached.answer;
-
-  // 2. Fetch all file summaries from DB
+  // Filter out SKIPPED rows and ensure it looks like a JSON array
   const files = db.prepare(`
-    SELECT path, purpose FROM files
-  `).all() as FileSummary[];
+    SELECT path, purpose, raw_content, embedding 
+    FROM files 
+    WHERE embedding IS NOT NULL 
+    AND embedding != 'SKIPPED'
+    AND embedding LIKE '[%'
+  `).all() as any[];
 
   if (files.length === 0) {
-    return "No repository data found. Please run `init` first to index the repo.";
+    console.log("⚠️ No searchable vectors found yet. Wait for init.ts to finish 1-2 files.");
+    return;
   }
 
-  const context = files
-    .map(f => `- ${f.path}: ${f.purpose}`)
-    .join("\n");
+  const questionVector = await generateEmbedding(question);
 
-  // 3. Build prompt
-  const prompt = `You are a helpful assistant that answers questions about a software repository.
-Below is a list of files in the repo and their purposes:
+  const ranked = files.map(file => ({
+    ...file,
+    score: cosineSimilarity(questionVector, JSON.parse(file.embedding))
+  })).sort((a, b) => b.score - a.score);
 
-${context}
+  const context = ranked.slice(0, 3).map(f => 
+    `File: ${f.path}\nPurpose: ${f.purpose}\nContent:\n${f.content}`
+  ).join("\n\n---\n\n");
 
-Answer the following question clearly and concisely based only on the repo context above.
-If the answer cannot be determined from the context, say so honestly.
-
-Question: ${question}`;
-
-  // 4. Call Gemini API
-  let answer: string;
-
-  try {
-    const result = await model.generateContent(prompt);
-    const response = result.response;
-    answer = response.text();
-
-    if (!answer) throw new Error("Empty response from Gemini");
-
-  } catch (err: any) {
-    throw new Error(`Gemini API error: ${err.message}`);
-  }
-
-  // 5. Cache the result
-  db.prepare(`
-    INSERT OR IGNORE INTO qa_cache (question, answer) VALUES (?, ?)
-  `).run(normalized, answer);
-
-  return answer;
+  const prompt = `Use this code context to answer: ${question}\n\nCONTEXT:\n${context}`;
+  const result = await model.generateContent(prompt);
+  console.log(`\n✨ Answer:\n${result.response.text()}`);
 }
+
+ask(process.argv.slice(2).join(" ")).catch(console.error);

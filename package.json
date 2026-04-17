@@ -19,14 +19,16 @@
   },
   "homepage": "https://github.com/sthuthii/HF-Repo#readme",
   "dependencies": {
-    "@google/generative-ai": "^0.21.0",
+    "@google/generative-ai": "^0.24.1",
+    "axios": "^1.15.0",
     "better-sqlite3": "^9.x.x",
-    "dotenv": "^16.x.x",
     "commander": "^14.0.3",
+    "dotenv": "^16.x.x",
     "ts-node": "^10.9.2",
     "typescript": "^6.0.3"
   },
   "devDependencies": {
+    "@types/better-sqlite3": "^7.6.13",
     "@types/dotenv": "^6.1.1",
     "@types/node": "^25.6.0"
   }

@@ -1,34 +1,28 @@
-import "dotenv/config";
-
-// src/db.ts
 import Database from "better-sqlite3";
+import path from "path";
+import fs from "fs";
 
-const db = new Database(".repomap/db.sqlite");
+const DB_DIR = path.resolve(process.cwd(), ".repomap");
+const DB_PATH = path.join(DB_DIR, "db.sqlite");
+
+if (!fs.existsSync(DB_DIR)) fs.mkdirSync(DB_DIR, { recursive: true });
+
+const db = new Database(DB_PATH);
+db.pragma('journal_mode = WAL'); // Crucial: Allows reading while writing
 
 export function initDB() {
   db.exec(`
-    CREATE TABLE IF NOT EXISTS repo (
-      path TEXT,
-      name TEXT,
-      summary TEXT,
-      stack TEXT,
-      cloned_at DATETIME
-    );
-
     CREATE TABLE IF NOT EXISTS files (
-      id INTEGER PRIMARY KEY,
-      path TEXT,
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      path TEXT UNIQUE,
       purpose TEXT,
       layer TEXT,
-      importance INTEGER,
-      raw_content TEXT
-    );
-
-    CREATE TABLE IF NOT EXISTS qa_cache (
-      question TEXT,
-      answer TEXT
+      importance TEXT,
+      raw_content TEXT,
+      embedding TEXT
     );
   `);
 }
 
+initDB();
 export default db;
