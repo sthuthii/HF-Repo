@@ -1,7 +1,6 @@
 import "dotenv/config";
-
 import db from "./db";
-import axios from "axios";
+import { GoogleGenerativeAI } from "@google/generative-ai";
 
 interface FileSummary {
   path: string;
@@ -13,43 +12,67 @@ interface QaCache {
   answer: string;
 }
 
-export async function ask(question: string) {
+// Initialize Gemini
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
+const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+
+// Normalize question for reliable cache hits
+function normalizeQuestion(q: string): string {
+  return q.trim().toLowerCase().replace(/\s+/g, " ");
+}
+
+export async function ask(question: string): Promise<string> {
+  const normalized = normalizeQuestion(question);
+
+  // 1. Check cache first
   const cached = db.prepare(`
     SELECT answer FROM qa_cache WHERE question = ?
-  `).get(question) as QaCache | undefined;
+  `).get(normalized) as QaCache | undefined;
 
   if (cached) return cached.answer;
 
+  // 2. Fetch all file summaries from DB
   const files = db.prepare(`
-    SELECT path, purpose FROM files LIMIT 20
+    SELECT path, purpose FROM files
   `).all() as FileSummary[];
 
-  const context = files.map(f => `${f.path}: ${f.purpose}`).join("\n");
+  if (files.length === 0) {
+    return "No repository data found. Please run `init` first to index the repo.";
+  }
 
-  const prompt = `
-  Answer the question based on repo:
+  const context = files
+    .map(f => `- ${f.path}: ${f.purpose}`)
+    .join("\n");
 
-  ${context}
+  // 3. Build prompt
+  const prompt = `You are a helpful assistant that answers questions about a software repository.
+Below is a list of files in the repo and their purposes:
 
-  Question: ${question}
-  `;
+${context}
 
-  const res = await axios.post("https://api.anthropic.com/v1/messages", {
-    model: "claude-3-sonnet-20240229",
-    max_tokens: 300,
-    messages: [{ role: "user", content: prompt }]
-  }, {
-    headers: {
-      "x-api-key": process.env.CLAUDE_API_KEY
-    }
-  });
+Answer the following question clearly and concisely based only on the repo context above.
+If the answer cannot be determined from the context, say so honestly.
 
-  const answer = res.data.content[0].text;
+Question: ${question}`;
 
+  // 4. Call Gemini API
+  let answer: string;
+
+  try {
+    const result = await model.generateContent(prompt);
+    const response = result.response;
+    answer = response.text();
+
+    if (!answer) throw new Error("Empty response from Gemini");
+
+  } catch (err: any) {
+    throw new Error(`Gemini API error: ${err.message}`);
+  }
+
+  // 5. Cache the result
   db.prepare(`
-    INSERT INTO qa_cache (question, answer)
-    VALUES (?, ?)
-  `).run(question, answer);
+    INSERT OR IGNORE INTO qa_cache (question, answer) VALUES (?, ?)
+  `).run(normalized, answer);
 
   return answer;
 }
