@@ -64,8 +64,8 @@ function parseArgs(args: string[]): ParsedArgs {
     const repoName = flags.repo ?? DEFAULT_REPO;
     const { initDB } = await import("./db");
     await initDB();
-    const { listFiles } = await import("./files");
-    console.table(listFiles(repoName));
+    const { formatFilesOutput } = await import("./files");
+    console.log(formatFilesOutput(repoName));
     return;
   }
 

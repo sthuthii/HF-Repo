@@ -213,6 +213,22 @@ export function saveRepoRecord(repo?: string | null, repoPath?: string | null) {
 }
 
 // NEW: multi-repo support
+export function getRepoPath(repo?: string | null) {
+  const rows = query(
+    `
+      SELECT path
+      FROM repo
+      WHERE name = ?
+      LIMIT 1
+    `,
+    [normalizeRepoName(repo)]
+  );
+
+  const repoPath = rows[0]?.path;
+  return typeof repoPath === "string" && repoPath.trim() ? repoPath : null;
+}
+
+// NEW: multi-repo support
 export function getCachedAnswer(repo: string | null | undefined, question: string) {
   const rows = query(
     `

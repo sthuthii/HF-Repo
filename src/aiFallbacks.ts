@@ -160,9 +160,34 @@ export function fallbackAnswer(question: string, files: Array<{ path: string; pu
     return "Gemini is unavailable, and I could not find a confident answer from the indexed file summaries alone.";
   }
 
+  const normalizedQuestion = question.toLowerCase();
+  const repoIntent =
+    normalizedQuestion.includes("what does this repo do") ||
+    normalizedQuestion.includes("what does the repo do") ||
+    normalizedQuestion.includes("what is this repo") ||
+    normalizedQuestion.includes("summarize this repo");
+
+  if (repoIntent) {
+    const purposeText = ranked.map((file) => file.purpose).join(" ").toLowerCase();
+
+    if (
+      purposeText.includes("search engine") ||
+      purposeText.includes("retrieval") ||
+      purposeText.includes("tf-idf") ||
+      purposeText.includes("crawler")
+    ) {
+      return [
+        "This repository appears to be a learning project for building a search engine.",
+        "It includes code for crawling and collecting documents, preprocessing text, building vocabularies and inverted indexes, ranking results with TF-IDF, generating embeddings, and evaluating retrieval quality.",
+      ].join(" ");
+    }
+
+    return `This repository appears to focus on ${ranked[0].purpose.charAt(0).toLowerCase()}${ranked[0].purpose.slice(1)}`;
+  }
+
   const lines = ranked.map((file) => `- ${file.path}: ${file.purpose}`);
   return [
-    "Gemini is unavailable, so this answer is based on indexed file summaries.",
+    "Gemini is unavailable, so this answer is based on indexed file summaries:",
     ...lines,
   ].join("\n");
 }
