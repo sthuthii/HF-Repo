@@ -4,7 +4,19 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "dev": "ts-node src/cli.ts"
+    "dev": "ts-node src/cli.ts",
+    "start": "ts-node src/cli.ts",
+    "build": "tsc",
+    "demo": "ts-node src/demo.ts",
+    "demo:role": "ts-node src/demo.ts role",
+    "demo:flow": "ts-node src/demo.ts flow",
+    "role": "ts-node src/cli.ts role",
+    "analyze": "ts-node src/cli.ts analyze",
+    "flow": "ts-node src/cli.ts flow",
+    "file-details": "ts-node src/cli.ts file-details",
+    "help": "ts-node src/cli.ts help",
+    "lint": "tsc --noEmit",
+    "clean": "rm -rf dist"
   },
   "repository": {
     "type": "git",
@@ -20,9 +32,10 @@
   "homepage": "https://github.com/sthuthii/HF-Repo#readme",
   "dependencies": {
     "@google/generative-ai": "^0.21.0",
+    "axios": "^1.15.0",
     "better-sqlite3": "^9.x.x",
-    "dotenv": "^16.x.x",
     "commander": "^14.0.3",
+    "dotenv": "^16.x.x",
     "ts-node": "^10.9.2",
     "typescript": "^6.0.3"
   },

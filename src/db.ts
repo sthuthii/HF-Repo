@@ -2,8 +2,9 @@ import "dotenv/config";
 
 // src/db.ts
 import Database from "better-sqlite3";
+import type { Database as DatabaseType } from "better-sqlite3";
 
-const db = new Database(".repomap/db.sqlite");
+const db: DatabaseType = new Database(".repomap/db.sqlite");
 
 export function initDB() {
   db.exec(`
