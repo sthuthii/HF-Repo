@@ -9,6 +9,10 @@ export declare class DependencyParser {
      * Clean a raw dependency string.
      * Removes quotes, semicolons, curly braces, and other syntax tokens.
      */
+    /**
+   * Extract import paths from file content.
+   */
+    static extractImports(content: string): string[];
     static cleanDependency(raw: string): string;
     /**
      * Parse and clean a full dependency list string.

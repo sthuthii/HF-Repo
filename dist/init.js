@@ -43,6 +43,9 @@ const fs_1 = __importDefault(require("fs"));
 const db_1 = __importStar(require("./db"));
 const walker_1 = require("./walker");
 const analyser_1 = require("./analyser");
+const roleClassifier_1 = require("./roleClassifier");
+const dependencyParser_1 = require("./dependencyParser");
+const classifier = new roleClassifier_1.FileClassifier();
 async function initRepo(url) {
     (0, db_1.initDB)();
     const repoName = url.split("/").pop()?.replace(".git", "");
@@ -51,15 +54,38 @@ async function initRepo(url) {
     const files = (0, walker_1.walk)(repoPath);
     for (const file of files) {
         const content = fs_1.default.readFileSync(file, "utf-8");
-        const meta = await (0, analyser_1.analyseFile)(content);
+        let meta = { purpose: "N/A (AI bypassed)", layer: "core", importance: 1 };
+        try {
+            meta = await (0, analyser_1.analyseFile)(content);
+        }
+        catch (e) {
+            // AI failed (401 error, etc.), keep using dummy data
+        }
+        const classification = classifier.classifyFile(file, content);
+        const rawDeps = dependencyParser_1.DependencyParser.extractImports(content);
+        const cleanDeps = rawDeps
+            .map(dep => dependencyParser_1.DependencyParser.cleanDependency(dep))
+            .filter(dep => !/[\(\)\. ]/.test(dep));
         db_1.default.prepare(`
       INSERT INTO files (path, purpose, layer, importance, raw_content)
       VALUES (?, ?, ?, ?, ?)
     `).run(file, meta.purpose, meta.layer, meta.importance, content);
     }
-    db_1.default.prepare(`
-    INSERT INTO repo (path, name, cloned_at)
-    VALUES (?, ?, datetime('now'))
-  `).run(repoPath, repoName);
+    for (const file of files) {
+        const content = fs_1.default.readFileSync(file, "utf-8");
+        const meta = await (0, analyser_1.analyseFile)(content);
+        // FIX 1: Pass 'file', not 'repoPath'
+        const classification = classifier.classifyFile(file, content);
+        const rawDeps = dependencyParser_1.DependencyParser.extractImports(content);
+        const cleanDeps = rawDeps
+            .map(dep => dependencyParser_1.DependencyParser.cleanDependency(dep))
+            .filter(dep => !/[\(\)\. ]/.test(dep));
+        console.log(`Indexing: ${file} -> Role: ${classification.primaryRole}`);
+        // FIX 2 & 3: Add the 3 new columns, and JSON.stringify the objects
+        db_1.default.prepare(`
+      INSERT INTO files (path, purpose, layer, importance, raw_content, primary_role, role_scores, dependencies)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(file, meta.purpose, meta.layer, meta.importance, content, classification.primaryRole, JSON.stringify(classification.scores), JSON.stringify(cleanDeps));
+    }
 }
 //# sourceMappingURL=init.js.map

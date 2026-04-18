@@ -12,6 +12,23 @@ class DependencyParser {
      * Clean a raw dependency string.
      * Removes quotes, semicolons, curly braces, and other syntax tokens.
      */
+    /**
+   * Extract import paths from file content.
+   */
+    static extractImports(content) {
+        const imports = new Set();
+        // Strip single-line comments to prevent grabbing random English words
+        const strippedContent = content.replace(/\/\/.*$/gm, '');
+        // Match JS/TS imports: import X from 'path' OR require('path')
+        const jsImports = strippedContent.match(/(?:import|require)\s*\(?['"]([^'"]+)['"]\)?/g) || [];
+        for (const imp of jsImports) {
+            const match = imp.match(/['"]([^'"]+)['"]/);
+            if (match) {
+                imports.add(match[1]);
+            }
+        }
+        return Array.from(imports);
+    }
     static cleanDependency(raw) {
         // Remove quotes (both single and double)
         let cleaned = raw.replace(/['"]/g, "");
