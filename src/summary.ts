@@ -1,22 +1,33 @@
 import "dotenv/config";
 
-import db from "./db";
+import { DEFAULT_REPO, getFilesByRepo } from "./db";
 
 interface FileRow {
-  id: number;
   path: string;
   purpose: string;
   layer: string;
   importance: number;
-  raw_content: string;
 }
 
-export function getSummary() {
-  const files = db.prepare("SELECT * FROM files").all() as FileRow[];
+// NEW: multi-repo support
+function normalizeRepoName(repo?: string | null) {
+  const trimmed = repo?.trim();
+  return trimmed ? trimmed : DEFAULT_REPO;
+}
 
-  return `
-Repo contains ${files.length} files.
-Main components:
-${files.slice(0, 5).map(f => `- ${f.path}: ${f.purpose}`).join("\n")}
-  `;
+export function getSummary(repo?: string) {
+  const files = getFilesByRepo(normalizeRepoName(repo)) as FileRow[];
+
+  return {
+    total: files.length,
+    topFiles: files
+      .slice()
+      .sort((a, b) => (b.importance ?? 0) - (a.importance ?? 0))
+      .slice(0, 5)
+      .map(f => ({
+      path: f.path,
+      purpose: f.purpose,
+      importance: f.importance
+    }))
+  };
 }
