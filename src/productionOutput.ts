@@ -119,8 +119,18 @@ export class ProductionOutput {
       suspicious: suspiciousFlags.find((f) => f.file === result.file),
     }));
 
-    // Group by role
-    const byRole = OutputFormatter.groupByRole(fileGroups);
+    // Convert to FormattedFile objects grouped by role
+    const formatted = fileGroups.map((fg) => OutputFormatter.formatFile(fg.result, fg.priority, fg.dependencies, fg.suspicious));
+    const byRole: Record<string, any> = {};
+    for (const file of formatted) {
+      if (!byRole[file.role]) {
+        byRole[file.role] = { role: file.role, totalFiles: 0, filesInRole: 0, primary: [], supporting: [], context: [], summary: "" };
+      }
+      byRole[file.role][file.priority].push(file);
+      byRole[file.role].filesInRole++;
+      byRole[file.role].totalFiles++;
+      byRole[file.role].summary = `${byRole[file.role].primary.length} primary, ${byRole[file.role].supporting.length} supporting, ${byRole[file.role].context.length} context`;
+    }
 
     // Build repository output
     const repoOutput = {
@@ -156,7 +166,7 @@ export class ProductionOutput {
     };
 
     // Format for display
-    const formattedOutput = OutputFormatter.formatRepositoryCLI(repoOutput);
+    const formattedOutput = OutputFormatter.formatComprehensiveReport(repoOutput);
     const healthReportStr = ConfidenceValidator.formatReport(healthReport);
     const issuesReportStr = this.buildIssuesReport(
       suspiciousFlags,
